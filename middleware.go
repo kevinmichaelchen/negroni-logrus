@@ -35,6 +35,7 @@ type Middleware struct {
 	After  func(*logrus.Entry, negroni.ResponseWriter, time.Duration, string) *logrus.Entry
 
 	logStarting bool
+	logEnding bool
 
 	clock timer
 
@@ -60,6 +61,7 @@ func NewCustomMiddleware(level logrus.Level, formatter logrus.Formatter, name st
 		After:  DefaultAfter,
 
 		logStarting: true,
+		logEnding:   true,
 		clock:       &realClock{},
 	}
 }
@@ -73,6 +75,7 @@ func NewMiddlewareFromLogger(logger *logrus.Logger, name string) *Middleware {
 		After:  DefaultAfter,
 
 		logStarting: true,
+		logEnding:   true,
 		clock:       &realClock{},
 	}
 }
@@ -81,6 +84,11 @@ func NewMiddlewareFromLogger(logger *logrus.Logger, name string) *Middleware {
 // request" prior to passing to the next middleware
 func (m *Middleware) SetLogStarting(v bool) {
 	m.logStarting = v
+}
+
+// SetLogEnding accepts a bool to control the logging of "completed handling request".
+func (m *Middleware) SetLogEnding(v bool) {
+	m.logEnding = v
 }
 
 // ExcludeURL adds a new URL u to be ignored during logging. The URL u is parsed, hence the returned error
@@ -138,7 +146,10 @@ func (m *Middleware) ServeHTTP(rw http.ResponseWriter, r *http.Request, next htt
 	latency := m.clock.Since(start)
 	res := rw.(negroni.ResponseWriter)
 
-	m.After(entry, res, latency, m.Name).Info("completed handling request")
+	afterEntry := m.After(entry, res, latency, m.Name)
+	if m.logEnding {
+		afterEntry.Info("completed handling request")
+	}
 }
 
 // BeforeFunc is the func type used to modify or replace the *logrus.Entry prior
